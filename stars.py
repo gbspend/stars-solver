@@ -2,16 +2,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
 from copy import deepcopy
+from heapq import heappush, heappop
 
 X = "×"
 O = "☆"
 
-class Puzzle:
-    def __init__(self, grid):
+class Node:
+    def __init__(self, grid, labels):
         self.grid = grid
-        self.labels = empty_labels(grid)
-        self.N = len(grid)
-        
+        self.labels = labels
+        self.children = [] #expand very conservatively!
         
 # ==================================================================
 
@@ -108,6 +108,12 @@ def empty_labels(grid):
         ret.append(curr)
     return ret
 
+def neigh_set(grid):
+    arr_g=[]
+    for a in grid:
+        arr_g+=a
+    return set(arr_g)
+
 #NOT in Puzzle class because we'll be trying with temp labels
 #check grid for any errors (not whether it's complete)
 def check_errors(grid, labels):
@@ -151,11 +157,7 @@ def check_errors(grid, labels):
                     return False
         if not sufficient_clumps(labels,row_spots,row_stars):
             return False
-    #collapse grid into 1d array, then take set() to get all area #s (without assump.)
-    arr_g=[]
-    for a in grid:
-        arr_g+=a
-    for n in set(arr_g): #CHECK ALL AREAS, ESP. IF NOT THERE!
+    for n in neigh_set(grid): #CHECK ALL AREAS, ESP. IF NOT THERE!
         if not sufficient_clumps(labels,areas[n],area_stars[n]):
             return False
     return True
@@ -363,6 +365,96 @@ def solve1(grid):
     draw(grid,labels, "FINISHED")
     return labels
 
+#requires no errors
+#returns True if no errors, else returns # of stars
+#   use "if check_complete(...) is True", not ==
+def check_complete(grid, labels):
+    MAX = len(grid)
+    total = 0
+    for r in range(MAX):
+        for c in range(MAX):
+            if labels[r][c] == O:
+                total += 1
+    if total == MAX * 2:
+        return True
+    else:
+        return total
+    
+def uncert_search(grid, labels, curr_stars, i=0):
+    MAX = len(grid)
+    children = []
+    for r in range(MAX):
+        for c in range(MAX):
+            if labels[r][c] == "":
+                cp = deepcopy(labels)
+                add_star(cp, (r,c))
+                #cp should NEVER have errors here
+                cp_labels, num = solve2(grid, cp, False)
+                if num is True: #SOLVED!
+                    return cp_labels
+                elif num > curr_stars+1: #+1 because we forced one!
+                    heappush(children, (num, cp_labels))
+                #use Node.children as heapq! Push on with num as key, ONLY if num > curr_stars
+    #can peek with children[0], maybe return something more than None...
+    if children:
+        child_stars, child_labels = heappop(children)
+        result = uncert_search(child_labels, child_stars, i+1)
+        if result:
+            return result
+    return None
+
+def solve2(grid, labels=None, deep=True):
+    if labels is None:
+        labels = empty_labels(grid)
+    while True:
+        changed = False
+        while find_xs(grid,labels) > 0:
+            if not deep:
+                pass#draw(grid,labels, "FOUND X IN SEARCH")
+            if not check_errors(grid,labels):
+                if deep: 
+                    print("ERRORS IN SOLVE LOOP (after Xs)!")
+                    draw(grid,labels)
+                    exit(1) #this is a bug IF this is the first time (unforced)
+                else: #we forced a star, and it caused an error: OK, keep searching!
+                    return None, 0
+            changed = True
+        while find_next_star(grid, labels) > 0:
+            if not deep:
+                pass#draw(grid,labels, "FOUND STAR IN SEARCH")
+            if not check_errors(grid,labels):
+                if deep:
+                    print("ERRORS IN SOLVE LOOP (after stars)!")
+                    draw(grid,labels)
+                    exit(1) #this is a bug IF this is the first time (unforced)
+                else: #we forced a star, and it caused an error: OK, keep searching!
+                    return None, 0
+            changed = True
+        if not changed:
+            break
+    comp = check_complete(grid, labels) #comp is True if done, # stars otherwise
+    if comp is True:
+        if deep: draw(grid,labels, "FINISHED")
+    else:
+        if deep: draw(grid,labels, "INCOMPLETE")
+        if deep:
+            labels = uncert_search(grid,labels,comp)
+            if labels:
+                if not check_errors(grid, labels):
+                    draw(grid,labels,"ERRORS IN SEARCH-PSEUDO-SOLVED!!")
+                    exit(1)
+                if not check_complete(grid, labels):
+                    draw(grid,labels,"INCOMPLETE SEARCH-PSEUDO-SOLVED!!")
+                    exit(1)
+                draw(grid,labels, "SEARCH-SOLVED!!")
+                return labels, True
+            else:
+                print("DEEPER SEARCH COULDN'T SOLVE :(")
+                return None, False
+        else:
+            pass#draw(grid,labels, "INCOMPLETE")
+    return labels, comp
+
 #===============================================================================
 
 if __name__ == "__main__":
@@ -411,8 +503,20 @@ if __name__ == "__main__":
         [7,8,8,8,8,6,6,6,9],
         [7,7,7,7,8,9,9,9,9],
     ]
+    test4 = [
+        [1,1,1,1,1,1,1,1,1,1],
+        [1,4,4,4,5,5,6,6,6,1],
+        [1,7,4,4,5,5,6,6,6,1],
+        [1,7,7,4,5,8,8,6,6,1],
+        [1,7,7,4,5,8,8,6,6,1],
+        [1,7,3,8,5,8,8,0,0,1],
+        [1,7,3,8,8,8,8,0,9,9],
+        [1,3,3,3,3,2,0,0,9,9],
+        [1,3,2,2,2,2,0,0,9,9],
+        [2,2,2,2,2,2,2,9,9,9],
+    ]
     #l1 = empty_labels(test1)
-    solve1(test1_2)
+    solve2(test4)
     #l2 = empty_labels(test2)
     #draw(test2, l2)
     #l2 = solve1(test2)
