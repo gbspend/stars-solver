@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<!-- Generated using ChatGPT -->
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Grid Painter</title>
+<style>
+.page {
+    max-width: 900px;
+    margin: 0 auto;
+}
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+}
+
+#controls {
+    margin-bottom: 10px;
+}
+
+#palette {
+    margin: 10px 0;
+}
+
+.color {
+    width: 30px;
+    height: 30px;
+    display: inline-block;
+    margin: 4px;
+    border: 2px solid black;
+    cursor: pointer;
+    text-align: center;
+    line-height: 30px;
+    font-size: 12px;
+    color: black;
+    font-weight: bold;
+}
+
+.selected {
+    border: 4px solid black;
+}
+
+#grid {
+    display: grid;
+    margin-top: 10px;
+    width: fit-content;
+}
+
+.cell {
+    width: 35px;
+    height: 35px;
+    border: 1px solid #ccc;
+    background-color: white;
+}
+
+#output {
+    margin-top: 15px;
+    width: 100%;
+    height: 100px;
+}
+</style>
+</head>
+
+<body>
+<div class="page">
+<h2>Grid Painter</h2>
+
+<div id="controls">
+<label>Grid Size (N): </label>
+<select id="sizeSelect">
+<option>8</option>
+<option selected>9</option>
+<option>10</option>
+<option>11</option>
+<option>12</option>
+</select>
+<button onclick="generateGrid()">Generate Grid</button>
+</div>
+
+<div id="palette"></div>
+<div id="grid"></div>
+<br>
+<div><button id="exportBtn" onclick="exportGrid()">Export Array</button></div>
+<div id="validationMessage" style="color:red;margin-top:8px;"></div>
+<h3>Exported Array</h3>
+<textarea id="output" readonly></textarea>
+</div>
+<script>
+
+let N = 12;
+let gridData = [];
+let currentColor = 0;
+let mouseDown = false;
+let lastPaintedIndex = null;
+
+const paletteColors = [
+"#e6194b","#3cb44b","#ffe119","#4363d8","#f58231",
+"#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe",
+"#008080","#e6beff"
+];
+
+document.body.onmousedown = () => mouseDown = true;
+document.body.onmouseup = () => {
+    mouseDown = false;
+    lastPaintedIndex = null;
+};
+
+function generateGrid() {
+	// Check if anything has been painted
+	if (gridData && gridData.some(v => v !== -1)) {
+		if (!confirm("The current grid has painted cells. Are you sure you want to regenerate it?")) {
+			return;
+		}
+	}
+    N = parseInt(document.getElementById("sizeSelect").value);
+
+    gridData = new Array(N * N).fill(-1);
+
+    const grid = document.getElementById("grid");
+    grid.innerHTML = "";
+    grid.style.gridTemplateColumns = `repeat(${N}, 35px)`;
+
+    for (let i = 0; i < N*N; i++) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        cell.dataset.index = i;
+
+        cell.addEventListener("mousedown", paintCell);
+        cell.addEventListener("mouseover", e => {
+            if (mouseDown) paintCell(e);
+        });
+
+        grid.appendChild(cell);
+    }
+	validateGrid();
+    generatePalette();
+}
+
+function generatePalette() {
+    const palette = document.getElementById("palette");
+    palette.innerHTML = "";
+
+    for (let i = 0; i < N; i++) {
+        const colorDiv = document.createElement("div");
+        colorDiv.className = "color";
+        colorDiv.style.backgroundColor = paletteColors[i];
+        colorDiv.textContent = i+1;
+
+        colorDiv.onclick = () => {
+            currentColor = i;
+            document.querySelectorAll(".color").forEach(c => c.classList.remove("selected"));
+            colorDiv.classList.add("selected");
+        };
+
+        palette.appendChild(colorDiv);
+    }
+}
+
+function paintCell(e) {
+    const index = parseInt(e.target.dataset.index);
+	if (e.buttons === 2) { gridData[index] = -1; e.target.style.backgroundColor="white"; validateGrid(); return; }
+
+    lastPaintedIndex = index;
+
+    e.target.style.backgroundColor = paletteColors[currentColor];
+    gridData[index] = currentColor;
+
+    validateGrid();
+}
+
+function exportGrid() {
+    const exported = gridData.map(v => v === -1 ? -1 : v+1);
+    document.getElementById("output").value = JSON.stringify(exported);
+}
+
+document.getElementById("output").addEventListener("click", function() {
+    if (!this.value) return;
+
+    navigator.clipboard.writeText(this.value).then(() => {
+        const old = this.value;
+        this.value = "Copied to clipboard!";
+        setTimeout(() => this.value = old, 800);
+    });
+});
+
+function validateGrid() {
+
+    const message = document.getElementById("validationMessage");
+    const exportBtn = document.getElementById("exportBtn");
+
+    function getNeighbors(i){
+        const r = Math.floor(i/N);
+        const c = i % N;
+        const n = [];
+
+        if(r>0) n.push((r-1)*N+c);
+        if(r<N-1) n.push((r+1)*N+c);
+        if(c>0) n.push(r*N+c-1);
+        if(c<N-1) n.push(r*N+c+1);
+
+        return n;
+    }
+
+    const visited = new Set();
+	const seenColors = new Set();
+
+    function checkRegion(startIndex, color){
+
+        const stack = [startIndex];
+        const region = new Set();
+
+        while(stack.length){
+
+            const i = stack.pop();
+            if(region.has(i)) continue;
+
+            if(gridData[i] !== color) continue;
+
+            region.add(i);
+            visited.add(i);
+
+            for(const n of getNeighbors(i)){
+                if(!region.has(n)) stack.push(n);
+            }
+        }
+
+        const rows = [...region].map(i=>Math.floor(i/N));
+        const cols = [...region].map(i=>i%N);
+
+        const minr = Math.min(...rows);
+        const maxr = Math.max(...rows);
+        const minc = Math.min(...cols);
+        const maxc = Math.max(...cols);
+
+        const height = maxr-minr+1;
+        const width  = maxc-minc+1;
+
+        if(height<=2 && width<=2){
+            return false;
+        }
+
+        return true;
+    }
+
+    for(let i=0;i<gridData.length;i++){
+
+		if(visited.has(i)) continue;
+
+		const color = gridData[i];
+
+		if(color === -1) continue;
+
+		// If we've already seen this color, this must be a second region
+		if(seenColors.has(color)){
+			message.textContent =
+				`Color ${color+1} appears in multiple disconnected regions.`;
+			exportBtn.disabled = true;
+			return;
+		}
+
+		seenColors.add(color);
+
+		const ok = checkRegion(i,color);
+
+        if(!ok){
+            message.textContent =
+                `Color ${color+1} forms an invalid region.`;
+            exportBtn.disabled = true;
+            return;
+        }
+    }
+
+    // Now check white regions
+    visited.clear();
+
+    for(let i=0;i<gridData.length;i++){
+
+        if(visited.has(i)) continue;
+        if(gridData[i] !== -1) continue;
+
+        const stack = [i];
+        const region = new Set();
+
+        while(stack.length){
+
+            const current = stack.pop();
+            if(region.has(current)) continue;
+            if(gridData[current] !== -1) continue;
+
+            region.add(current);
+            visited.add(current);
+
+            for(const n of getNeighbors(current)){
+                if(!region.has(n)) stack.push(n);
+            }
+        }
+
+        const rows = [...region].map(i=>Math.floor(i/N));
+        const cols = [...region].map(i=>i%N);
+
+        const minr = Math.min(...rows);
+        const maxr = Math.max(...rows);
+        const minc = Math.min(...cols);
+        const maxc = Math.max(...cols);
+
+        const height = maxr-minr+1;
+        const width  = maxc-minc+1;
+
+        if(height<=2 && width<=2){
+            message.textContent =
+                `A white area fits inside a 2×2 grid, which is not allowed.`;
+            exportBtn.disabled = true;
+            return;
+        }
+    }
+
+    message.textContent = "";
+    exportBtn.disabled = false;
+}
+
+document.addEventListener("contextmenu", function(e) {
+    e.preventDefault();
+});
+
+generateGrid();
+
+</script>
+
+</body>
+</html>
