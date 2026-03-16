@@ -295,6 +295,7 @@ def check_area_clumps(grid,labels, spots, stars):
                 if len(clump) == 1:
                     add_star(labels, clump[0])
                     ret = True
+    return ret
 
 def sufficient_clumps(labels, spots, stars):
     if stars > 2:
@@ -398,7 +399,7 @@ def uncert_search(grid, labels, curr_stars, i=0):
     #can peek with children[0], maybe return something more than None...
     if children:
         child_stars, child_labels = heappop(children)
-        result = uncert_search(child_labels, child_stars, i+1)
+        result = uncert_search(grid, child_labels, child_stars, i+1)
         if result:
             return result
     return None
@@ -516,6 +517,7 @@ if __name__ == "__main__":
         [2,2,2,2,2,2,2,9,9,9],
     ]
     #l1 = empty_labels(test1)
+    solve2(test3)
     solve2(test4)
     #l2 = empty_labels(test2)
     #draw(test2, l2)
