@@ -526,6 +526,3 @@ if __name__ == "__main__":
     #draw(test2, l2)
     print("bon weekend!")
 
-
-#TODO: add branching tests!
-#   remember: sort of BFS... like pursue branch with FEWEST possibilities first
