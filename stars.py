@@ -394,11 +394,12 @@ def uncert_search(grid, labels, curr_stars, i=0):
                 if num is True: #SOLVED!
                     return cp_labels
                 elif num > curr_stars+1: #+1 because we forced one!
-                    heappush(children, (num, cp_labels))
+                    heappush(children, (-num, cp_labels)) #negative for max heap
                 #use Node.children as heapq! Push on with num as key, ONLY if num > curr_stars
     #can peek with children[0], maybe return something more than None...
     if children:
         child_stars, child_labels = heappop(children)
+        child_stars *= -1 #undo max heap
         result = uncert_search(grid, child_labels, child_stars, i+1)
         if result:
             return result
