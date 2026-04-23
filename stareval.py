@@ -449,3 +449,7 @@ class StarEval:
             else:
                 pass#draw(grid,labels, "INCOMPLETE")
         return labels, comp
+
+#NOTES
+#Binary space partition to split non, hand-drawn regions!
+#https://en.wikipedia.org/wiki/Binary_space_partitioning
